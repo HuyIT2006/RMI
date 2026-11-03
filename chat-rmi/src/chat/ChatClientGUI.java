@@ -99,38 +99,68 @@ public class ChatClientGUI extends JFrame {
         }).start();
     }
 
-    public static void main(String[] args) throws Exception {
-        JTextField ip = new JTextField("localhost");
-        JTextField port = new JTextField("1099");
-        JTextField user = new JTextField();
-        JPanel form = new JPanel(new GridLayout(0, 2, 5, 5));
-        form.add(new JLabel("IP server:"));
-        form.add(ip);
-        form.add(new JLabel("Cổng:"));
-        form.add(port);
-        form.add(new JLabel("Tên của bạn:"));
-        form.add(user);
-        if (JOptionPane.showConfirmDialog(null, form, "Kết nối chat", JOptionPane.OK_CANCEL_OPTION)
-                != JOptionPane.OK_OPTION) return;
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            String defaultIp = args.length > 0 ? args[0] : "localhost";
+            String defaultPort = args.length > 1 ? args[1] : "1099";
+            String defaultName = args.length > 2 ? args[2] : "";
 
-        String serverIp = ip.getText().trim();
-        int p = Integer.parseInt(port.getText().trim());
-        String name = user.getText().trim();
+            JTextField ip = new JTextField(defaultIp);
+            JTextField port = new JTextField(defaultPort);
+            JTextField user = new JTextField(defaultName);
+            JPanel form = new JPanel(new GridLayout(0, 2, 5, 5));
+            form.add(new JLabel("IP server:"));
+            form.add(ip);
+            form.add(new JLabel("Cổng:"));
+            form.add(port);
+            form.add(new JLabel("Tên của bạn:"));
+            form.add(user);
+
+            if (JOptionPane.showConfirmDialog(null, form, "Kết nối chat", JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
+
+            connect(ip.getText().trim(), port.getText().trim(), user.getText().trim());
+        });
+    }
+
+    private static void connect(String serverIp, String portText, String name) {
+        if (serverIp.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "Vui lòng nhập IP server.");
+            return;
+        }
+        if (name.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "Vui lòng nhập tên của bạn.");
+            return;
+        }
+
+        final int p;
+        try {
+            p = Integer.parseInt(portText);
+            if (p < 1 || p > 65535) throw new NumberFormatException();
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(null, "Cổng không hợp lệ. Hãy nhập số từ 1 đến 65535.");
+            return;
+        }
+
         try {
             System.setProperty("java.rmi.server.hostname", NetUtil.localIpToward(serverIp));
             ChatService service = (ChatService) LocateRegistry.getRegistry(serverIp, p)
                     .lookup(ChatServerMain.SERVICE_NAME);
-            // tạo frame trước để Listener cập nhật được giao diện ngay khi join
+
             ChatClientGUI gui = new ChatClientGUI(service, name, serverIp + ":" + p);
             Listener listener = gui.new Listener();
             if (!service.join(name, listener)) {
-                JOptionPane.showMessageDialog(null, "Tên đã có người dùng hoặc không hợp lệ.");
-                System.exit(1);
+                JOptionPane.showMessageDialog(null,
+                        "Tên đã có người dùng hoặc không hợp lệ.\nHãy mở lại chương trình và nhập tên khác.");
+                return;
             }
+
+            gui.area.append("*** Đã kết nối tới " + serverIp + ":" + p + " với tên " + name + " ***\n");
             gui.setVisible(true);
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(null, "Không kết nối được server:\n" + ex);
-            System.exit(1);
+            JOptionPane.showMessageDialog(null,
+                    "Không kết nối được server:\n" + ex.getClass().getSimpleName() + ": " + ex.getMessage()
+                            + "\n\nKiểm tra IP/Cổng, server đã chạy và firewall đã mở cổng.");
         }
     }
 }
